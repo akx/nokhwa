@@ -17,7 +17,7 @@ path = "../nokhwa-core"
 
 [target.'cfg(any(target_os="macos",target_os="ios"))'.dependencies]
 core-media-sys = "0.1"
-core-video-sys = "0.1"
+core-video-sys = ">0.1,<0.3"
 cocoa-foundation = "0.2"
 core-foundation = "0.10"
 objc = { version = "0.2", features = ["exception"] }
