@@ -16,11 +16,27 @@ version = "0.1"
 path = "../nokhwa-core"
 
 [target.'cfg(any(target_os="macos",target_os="ios"))'.dependencies]
-core-media-sys = "0.1"
-core-foundation = "0.10"
 objc2 = { version = "0.6", features = ["catch-all"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSDictionary", "NSEnumerator", "NSError", "NSObject", "NSString", "NSValue"] }
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFCGTypes"] }
+objc2-core-media = { version = "0.3", default-features = false, features = ["std", "objc2", "objc2-core-video", "CMFormatDescription", "CMSampleBuffer", "CMTime"] }
+objc2-core-video = { version = "0.3", default-features = false, features = ["std", "CVBase", "CVBuffer", "CVImageBuffer", "CVPixelBuffer", "CVReturn"] }
+objc2-av-foundation = { version = "0.3", default-features = false, features = [
+    "std",
+    "AVCaptureDevice",
+    "AVCaptureInput",
+    "AVCaptureOutput",
+    "AVCaptureOutputBase",
+    "AVCaptureSession",
+    "AVCaptureVideoDataOutput",
+    "AVMediaFormat",
+    "block2",
+    "dispatch2",
+    "objc2-core-foundation",
+    "objc2-core-media",
+    "objc2-core-video",
+] }
 block2 = "0.6"
-objc2-core-video = { version = "0.3", default-features = false, features = ["std", "CVPixelBuffer"] }
+dispatch2 = "0.3"
 flume = "0.11"
 once_cell = "1"

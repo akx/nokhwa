@@ -20,276 +20,10 @@
 
 // <some change so we can call this 0.10.4>
 
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
-
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 mod internal {
-
-    #[allow(non_snake_case)]
-    pub mod core_media {
-        // all of this is stolen from bindgen
-        // steal it idc
-        use crate::internal::CGFloat;
-        use core_media_sys::{
-            CMBlockBufferRef, CMFormatDescriptionRef, CMSampleBufferRef, CMTimeEpoch, CMTimeFlags,
-            CMTimeScale, CMTimeValue, CMVideoDimensions, FourCharCode,
-        };
-        use objc2::{class, msg_send, runtime::AnyObject, Encode, Encoding, RefEncode};
-
-        pub type Id = *mut AnyObject;
-
-        #[repr(transparent)]
-        #[derive(Clone)]
-        pub struct NSObject(pub Id);
-        unsafe impl Encode for NSObject {
-            const ENCODING: Encoding = Encoding::Object;
-        }
-        impl NSObject {
-            pub fn alloc() -> Self {
-                Self(unsafe { msg_send![class!(NSObject), alloc] })
-            }
-        }
-
-        #[repr(transparent)]
-        #[derive(Clone)]
-        pub struct NSString(pub Id);
-        unsafe impl Encode for NSString {
-            const ENCODING: Encoding = Encoding::Object;
-        }
-        impl NSString {
-            pub fn alloc() -> Self {
-                Self(unsafe { msg_send![class!(NSString), alloc] })
-            }
-        }
-
-        /// `CMTime`, redefined here so that it can be passed through `msg_send!`.
-        #[repr(C)]
-        #[derive(Copy, Clone, Debug, PartialEq)]
-        pub struct CMTime {
-            pub value: CMTimeValue,
-            pub timescale: CMTimeScale,
-            pub flags: CMTimeFlags,
-            pub epoch: CMTimeEpoch,
-        }
-        unsafe impl Encode for CMTime {
-            const ENCODING: Encoding = Encoding::Struct(
-                "?",
-                &[
-                    CMTimeValue::ENCODING,
-                    CMTimeScale::ENCODING,
-                    CMTimeFlags::ENCODING,
-                    CMTimeEpoch::ENCODING,
-                ],
-            );
-        }
-        unsafe impl RefEncode for CMTime {
-            const ENCODING_REF: Encoding = Encoding::Pointer(&Self::ENCODING);
-        }
-
-        /// Opaque `CMFormatDescription`, for receiving a `CMFormatDescriptionRef` from `msg_send!`.
-        #[repr(C)]
-        pub struct OpaqueCMFormatDescription {
-            _unused: [u8; 0],
-        }
-        unsafe impl RefEncode for OpaqueCMFormatDescription {
-            const ENCODING_REF: Encoding =
-                Encoding::Pointer(&Encoding::Struct("opaqueCMFormatDescription", &[]));
-        }
-
-        pub type AVMediaType = NSString;
-
-        #[allow(non_snake_case)]
-        #[link(name = "CoreMedia", kind = "framework")]
-        extern "C" {
-            pub fn CMVideoFormatDescriptionGetDimensions(
-                videoDesc: CMFormatDescriptionRef,
-            ) -> CMVideoDimensions;
-
-            pub fn CMTimeMake(value: i64, scale: i32) -> CMTime;
-
-            pub fn CMBlockBufferGetDataLength(theBuffer: CMBlockBufferRef) -> std::os::raw::c_int;
-
-            pub fn CMBlockBufferCopyDataBytes(
-                theSourceBuffer: CMBlockBufferRef,
-                offsetToData: usize,
-                dataLength: usize,
-                destination: *mut std::os::raw::c_void,
-            ) -> std::os::raw::c_int;
-
-            pub fn CMSampleBufferGetDataBuffer(sbuf: CMSampleBufferRef) -> CMBlockBufferRef;
-
-            pub fn CMSampleBufferGetPresentationTimeStamp(sbuf: CMSampleBufferRef) -> CMTime;
-
-            pub fn dispatch_queue_create(
-                label: *const std::os::raw::c_char,
-                attr: NSObject,
-            ) -> NSObject;
-
-            pub fn dispatch_release(object: NSObject);
-
-            pub fn CMSampleBufferGetImageBuffer(sbuf: CMSampleBufferRef) -> CVImageBufferRef;
-
-            pub fn CVPixelBufferLockBaseAddress(
-                pixelBuffer: CVPixelBufferRef,
-                lockFlags: CVPixelBufferLockFlags,
-            ) -> CVReturn;
-
-            pub fn CVPixelBufferUnlockBaseAddress(
-                pixelBuffer: CVPixelBufferRef,
-                unlockFlags: CVPixelBufferLockFlags,
-            ) -> CVReturn;
-
-            pub fn CVPixelBufferGetDataSize(pixelBuffer: CVPixelBufferRef)
-                -> std::os::raw::c_ulong;
-
-            pub fn CVPixelBufferGetBaseAddress(
-                pixelBuffer: CVPixelBufferRef,
-            ) -> *mut std::os::raw::c_void;
-
-            pub fn CVPixelBufferGetPixelFormatType(pixelBuffer: CVPixelBufferRef) -> OSType;
-
-            pub fn CVPixelBufferGetWidth(pixelBuffer: CVPixelBufferRef) -> std::os::raw::c_ulong;
-
-            pub fn CVPixelBufferGetHeight(pixelBuffer: CVPixelBufferRef) -> std::os::raw::c_ulong;
-
-            pub fn CVPixelBufferGetBytesPerRow(
-                pixelBuffer: CVPixelBufferRef,
-            ) -> std::os::raw::c_ulong;
-
-            pub fn CVPixelBufferIsPlanar(pixelBuffer: CVPixelBufferRef) -> u8;
-
-            pub fn CVPixelBufferGetPlaneCount(
-                pixelBuffer: CVPixelBufferRef,
-            ) -> std::os::raw::c_ulong;
-
-            pub fn CVPixelBufferGetBaseAddressOfPlane(
-                pixelBuffer: CVPixelBufferRef,
-                planeIndex: std::os::raw::c_ulong,
-            ) -> *mut std::os::raw::c_void;
-
-            pub fn CVPixelBufferGetBytesPerRowOfPlane(
-                pixelBuffer: CVPixelBufferRef,
-                planeIndex: std::os::raw::c_ulong,
-            ) -> std::os::raw::c_ulong;
-
-            pub fn CVPixelBufferGetWidthOfPlane(
-                pixelBuffer: CVPixelBufferRef,
-                planeIndex: std::os::raw::c_ulong,
-            ) -> std::os::raw::c_ulong;
-
-            pub fn CVPixelBufferGetHeightOfPlane(
-                pixelBuffer: CVPixelBufferRef,
-                planeIndex: std::os::raw::c_ulong,
-            ) -> std::os::raw::c_ulong;
-        }
-
-        #[repr(C)]
-        #[derive(Clone, Debug, PartialEq, PartialOrd)]
-        pub struct CGPoint {
-            pub x: CGFloat,
-            pub y: CGFloat,
-        }
-        unsafe impl Encode for CGPoint {
-            const ENCODING: Encoding =
-                Encoding::Struct("CGPoint", &[CGFloat::ENCODING, CGFloat::ENCODING]);
-        }
-
-        #[repr(C)]
-        #[derive(Debug, Copy, Clone)]
-        pub struct __CVBuffer {
-            _unused: [u8; 0],
-        }
-
-        #[allow(non_snake_case)]
-        #[derive(Copy, Clone, Debug, PartialOrd, PartialEq)]
-        #[repr(C)]
-        pub struct AVCaptureWhiteBalanceGains {
-            pub redGain: f32,
-            pub greenGain: f32,
-            pub blueGain: f32,
-        }
-        unsafe impl Encode for AVCaptureWhiteBalanceGains {
-            const ENCODING: Encoding =
-                Encoding::Struct("?", &[f32::ENCODING, f32::ENCODING, f32::ENCODING]);
-        }
-
-        pub type CVBufferRef = *mut __CVBuffer;
-
-        pub type CVImageBufferRef = CVBufferRef;
-        pub type CVPixelBufferRef = CVImageBufferRef;
-        pub type CVPixelBufferLockFlags = u64;
-        pub type CVReturn = i32;
-
-        pub type OSType = FourCharCode;
-        pub type AVVideoCodecType = NSString;
-
-        #[link(name = "AVFoundation", kind = "framework")]
-        extern "C" {
-            pub static AVVideoCodecKey: NSString;
-            pub static AVVideoCodecTypeHEVC: AVVideoCodecType;
-            pub static AVVideoCodecTypeH264: AVVideoCodecType;
-            pub static AVVideoCodecTypeJPEG: AVVideoCodecType;
-            pub static AVVideoCodecTypeAppleProRes4444: AVVideoCodecType;
-            pub static AVVideoCodecTypeAppleProRes422: AVVideoCodecType;
-            pub static AVVideoCodecTypeAppleProRes422HQ: AVVideoCodecType;
-            pub static AVVideoCodecTypeAppleProRes422LT: AVVideoCodecType;
-            pub static AVVideoCodecTypeAppleProRes422Proxy: AVVideoCodecType;
-            pub static AVVideoCodecTypeHEVCWithAlpha: AVVideoCodecType;
-            pub static AVVideoCodecHEVC: NSString;
-            pub static AVVideoCodecH264: NSString;
-            pub static AVVideoCodecJPEG: NSString;
-            pub static AVVideoCodecAppleProRes4444: NSString;
-            pub static AVVideoCodecAppleProRes422: NSString;
-            pub static AVVideoWidthKey: NSString;
-            pub static AVVideoHeightKey: NSString;
-            pub static AVVideoExpectedSourceFrameRateKey: NSString;
-
-            pub static AVMediaTypeVideo: AVMediaType;
-            pub static AVMediaTypeAudio: AVMediaType;
-            pub static AVMediaTypeText: AVMediaType;
-            pub static AVMediaTypeClosedCaption: AVMediaType;
-            pub static AVMediaTypeSubtitle: AVMediaType;
-            pub static AVMediaTypeTimecode: AVMediaType;
-            pub static AVMediaTypeMetadata: AVMediaType;
-            pub static AVMediaTypeMuxed: AVMediaType;
-            pub static AVMediaTypeMetadataObject: AVMediaType;
-            pub static AVMediaTypeDepthData: AVMediaType;
-
-            pub static AVCaptureLensPositionCurrent: f32;
-            pub static AVCaptureExposureTargetBiasCurrent: f32;
-            pub static AVCaptureExposureDurationCurrent: CMTime;
-            pub static AVCaptureISOCurrent: f32;
-        }
-    }
-
-    use crate::core_media::{
-        dispatch_queue_create, AVCaptureExposureDurationCurrent,
-        AVCaptureExposureTargetBiasCurrent, AVCaptureISOCurrent, AVCaptureWhiteBalanceGains,
-        AVMediaTypeAudio, AVMediaTypeClosedCaption, AVMediaTypeDepthData, AVMediaTypeMetadata,
-        AVMediaTypeMetadataObject, AVMediaTypeMuxed, AVMediaTypeSubtitle, AVMediaTypeText,
-        AVMediaTypeTimecode, AVMediaTypeVideo, CGPoint, CMSampleBufferGetImageBuffer,
-        CMVideoFormatDescriptionGetDimensions, CVImageBufferRef, CVPixelBufferGetBaseAddress,
-        CVPixelBufferGetBaseAddressOfPlane, CVPixelBufferGetBytesPerRow,
-        CVPixelBufferGetBytesPerRowOfPlane, CVPixelBufferGetHeight, CVPixelBufferGetHeightOfPlane,
-        CVPixelBufferGetPixelFormatType, CVPixelBufferGetPlaneCount, CVPixelBufferGetWidth,
-        CVPixelBufferGetWidthOfPlane, CVPixelBufferIsPlanar, CVPixelBufferLockBaseAddress,
-        CVPixelBufferUnlockBaseAddress, NSObject, OSType,
-    };
-
-    use crate::core_media::{CMTime, OpaqueCMFormatDescription};
-    use block2::{Block, RcBlock};
-    use core_foundation::base::TCFType;
-    use core_foundation::number::CFNumber;
-    use core_media_sys::{
-        kCMPixelFormat_24RGB, kCMPixelFormat_422YpCbCr8_yuvs,
-        kCMPixelFormat_8IndexedGray_WhiteIsZero, kCMVideoCodecType_422YpCbCr8,
-        kCMVideoCodecType_JPEG, kCMVideoCodecType_JPEG_OpenDML, CMFormatDescriptionGetMediaSubType,
-        CMFormatDescriptionRef, CMSampleBufferRef, CMVideoDimensions,
-    };
-    use objc2_core_video::{
-        kCVPixelBufferPixelFormatTypeKey, kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
-        kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
-    };
+    use block2::RcBlock;
+    use dispatch2::{DispatchQueue, DispatchRetained};
     use flume::{Receiver, Sender};
     use nokhwa_core::{
         error::NokhwaError,
@@ -300,30 +34,41 @@ mod internal {
         },
     };
     use objc2::{
-        class, msg_send,
+        define_class, msg_send,
         rc::Retained,
-        runtime::{AnyClass, AnyObject, AnyProtocol, Bool, ClassBuilder, Sel},
-        sel, Encode, Encoding,
+        runtime::{AnyObject, Bool, NSObject, NSObjectProtocol, ProtocolObject},
+        AllocAnyThread, DefinedClass,
     };
-    use objc2_foundation::NSString;
-    use once_cell::sync::Lazy;
+    use objc2_av_foundation as av;
+    use objc2_av_foundation::{
+        AVCaptureConnection, AVCaptureExposureDurationCurrent, AVCaptureExposureTargetBiasCurrent,
+        AVCaptureISOCurrent, AVCaptureOutput, AVCaptureVideoDataOutputSampleBufferDelegate,
+    };
+    use objc2_core_foundation::CGPoint;
+    use objc2_core_media::{
+        kCMPixelFormat_24RGB, kCMPixelFormat_422YpCbCr8_yuvs,
+        kCMPixelFormat_8IndexedGray_WhiteIsZero, kCMVideoCodecType_422YpCbCr8,
+        kCMVideoCodecType_JPEG, kCMVideoCodecType_JPEG_OpenDML, CMSampleBuffer, CMTime,
+        CMVideoDimensions, CMVideoFormatDescriptionGetDimensions,
+    };
+    use objc2_core_video::{
+        kCVPixelBufferPixelFormatTypeKey, kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
+        kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange, CVPixelBuffer,
+        CVPixelBufferGetBaseAddress, CVPixelBufferGetBaseAddressOfPlane,
+        CVPixelBufferGetBytesPerRow, CVPixelBufferGetBytesPerRowOfPlane, CVPixelBufferGetHeight,
+        CVPixelBufferGetHeightOfPlane, CVPixelBufferGetPixelFormatType, CVPixelBufferGetPlaneCount,
+        CVPixelBufferGetWidth, CVPixelBufferGetWidthOfPlane, CVPixelBufferIsPlanar,
+        CVPixelBufferLockBaseAddress, CVPixelBufferLockFlags, CVPixelBufferUnlockBaseAddress,
+    };
+    use objc2_foundation::{NSArray, NSDictionary, NSNumber, NSString};
     use std::{
-        borrow::Cow,
-        cmp::Ordering,
-        collections::BTreeMap,
-        convert::TryFrom,
-        error::Error,
-        ffi::{c_void, CStr},
-        sync::Arc,
+        borrow::Cow, cmp::Ordering, collections::BTreeMap, convert::TryFrom, ffi::CStr, sync::Arc,
         time::Duration,
     };
 
-    type NSInteger = isize;
-    type NSUInteger = usize;
-    type CGFloat = f64;
+    pub use av::{AVAuthorizationStatus, AVCaptureDevicePosition};
 
-    /// A null completion handler block, for methods taking an optional block.
-    const NO_HANDLER: Option<&Block<dyn Fn()>> = None;
+    type NSInteger = isize;
 
     extern "C" {
         fn mach_absolute_time() -> u64;
@@ -350,109 +95,12 @@ mod internal {
         ticks.wrapping_mul(numer as u64) / (denom as u64)
     }
 
-    macro_rules! create_boilerplate_impl {
-        {
-            $( [$class_vis:vis $class_name:ident : $( {$field_vis:vis $field_name:ident : $field_type:ty} ),*] ),+
-        } => {
-            $(
-                $class_vis struct $class_name {
-                    inner: *mut AnyObject,
-                    $(
-                        $field_vis $field_name : $field_type
-                    )*
-                }
-
-                impl $class_name {
-                    pub fn inner(&self) -> *mut AnyObject {
-                        self.inner
-                    }
-                }
-            )+
-        };
-
-        {
-            $( [$class_vis:vis $class_name:ident ] ),+
-        } => {
-            $(
-                $class_vis struct $class_name {
-                    inner: *mut AnyObject,
-                }
-
-                impl $class_name {
-                    pub fn inner(&self) -> *mut AnyObject {
-                        self.inner
-                    }
-                }
-
-                impl From<*mut AnyObject> for $class_name {
-                    fn from(obj: *mut AnyObject) -> Self {
-                        $class_name {
-                            inner: obj,
-                        }
-                    }
-                }
-            )+
-        };
-    }
-
-    fn str_to_nsstr(string: &str) -> *mut AnyObject {
-        Retained::into_raw(NSString::from_str(string)).cast()
-    }
-
-    fn nsstr_to_str<'a>(nsstr: *mut AnyObject) -> Cow<'a, str> {
-        let nsstr = unsafe { &*nsstr.cast::<NSString>() };
-        Cow::Owned(nsstr.to_string())
-    }
-
-    fn ns_arr_count(data: *mut AnyObject) -> NSUInteger {
-        unsafe { msg_send![data, count] }
-    }
-
-    fn ns_arr_get(data: *mut AnyObject, index: NSUInteger) -> *mut AnyObject {
-        unsafe { msg_send![data, objectAtIndex: index] }
-    }
-
-    fn vec_to_ns_arr<T: Into<*mut AnyObject>>(data: Vec<T>) -> *mut AnyObject {
-        let mutable_array: *mut AnyObject = unsafe { msg_send![class!(NSMutableArray), array] };
-        data.into_iter().for_each(|item| {
-            let item_obj: *mut AnyObject = item.into();
-            let _: () = unsafe { msg_send![mutable_array, addObject: item_obj] };
-        });
-        mutable_array
-    }
-
-    fn ns_arr_to_vec<T: From<*mut AnyObject>>(data: *mut AnyObject) -> Vec<T> {
-        let length = ns_arr_count(data);
-
-        let mut out_vec: Vec<T> = Vec::with_capacity(length);
-        for index in 0..length {
-            let item = ns_arr_get(data, index);
-            out_vec.push(T::from(item));
-        }
-        out_vec
-    }
-
-    fn try_ns_arr_to_vec<T, TE>(data: *mut AnyObject) -> Result<Vec<T>, TE>
-    where
-        TE: Error,
-        T: TryFrom<*mut AnyObject, Error = TE>,
-    {
-        let length = ns_arr_count(data);
-
-        let mut out_vec: Vec<T> = Vec::with_capacity(length);
-        for index in 0..length {
-            let item = ns_arr_get(data, index);
-            out_vec.push(T::try_from(item)?);
-        }
-        Ok(out_vec)
-    }
-
-    fn compare_ns_string(this: *mut AnyObject, other: core_media::NSString) -> bool {
-        unsafe { msg_send![this, isEqualToString: other] }
+    fn media_type_video() -> &'static NSString {
+        unsafe { av::AVMediaTypeVideo }.expect("AVMediaTypeVideo is not available")
     }
 
     #[allow(non_upper_case_globals)]
-    fn raw_fcc_to_frameformat(raw: OSType) -> Option<FrameFormat> {
+    fn raw_fcc_to_frameformat(raw: u32) -> Option<FrameFormat> {
         match raw {
             kCMVideoCodecType_422YpCbCr8 | kCMPixelFormat_422YpCbCr8_yuvs => {
                 Some(FrameFormat::YUYV)
@@ -470,23 +118,19 @@ mod internal {
     /// CVPixelBuffers are usually padded; this converts such a strided/padded frame to non-strided.
     ///
     /// # Safety
-    /// `image_buffer` must be a valid `CVPixelBuffer` whose base address is currently locked.
-    unsafe fn copy_pixel_buffer_packed(image_buffer: CVImageBufferRef) -> Vec<u8> {
-        if unsafe { CVPixelBufferIsPlanar(image_buffer) } != 0 {
-            let plane_count = unsafe { CVPixelBufferGetPlaneCount(image_buffer) } as usize;
+    /// `image_buffer`'s base address must currently be locked.
+    unsafe fn copy_pixel_buffer_packed(image_buffer: &CVPixelBuffer) -> Vec<u8> {
+        if CVPixelBufferIsPlanar(image_buffer) {
+            let plane_count = CVPixelBufferGetPlaneCount(image_buffer);
             let mut out = Vec::new();
             for plane in 0..plane_count {
-                let base = unsafe { CVPixelBufferGetBaseAddressOfPlane(image_buffer, plane as _) }
-                    as *const u8;
+                let base = CVPixelBufferGetBaseAddressOfPlane(image_buffer, plane) as *const u8;
                 if base.is_null() {
                     continue;
                 }
-                let stride = unsafe { CVPixelBufferGetBytesPerRowOfPlane(image_buffer, plane as _) }
-                    as usize;
-                let width =
-                    unsafe { CVPixelBufferGetWidthOfPlane(image_buffer, plane as _) } as usize;
-                let height =
-                    unsafe { CVPixelBufferGetHeightOfPlane(image_buffer, plane as _) } as usize;
+                let stride = CVPixelBufferGetBytesPerRowOfPlane(image_buffer, plane);
+                let width = CVPixelBufferGetWidthOfPlane(image_buffer, plane);
+                let height = CVPixelBufferGetHeightOfPlane(image_buffer, plane);
                 // 8-bit 4:2:0 bi-planar (NV12) is the only planar format supported:
                 // plane 0 is luma at 1 byte/pixel
                 // plane 1 is interleaved Cb+Cr at 2 bytes/downsampled pixel
@@ -500,14 +144,14 @@ mod internal {
             }
             out
         } else {
-            let base = unsafe { CVPixelBufferGetBaseAddress(image_buffer) } as *const u8;
+            let base = CVPixelBufferGetBaseAddress(image_buffer) as *const u8;
             if base.is_null() {
                 return Vec::new();
             }
-            let stride = unsafe { CVPixelBufferGetBytesPerRow(image_buffer) } as usize;
-            let width = unsafe { CVPixelBufferGetWidth(image_buffer) } as usize;
-            let height = unsafe { CVPixelBufferGetHeight(image_buffer) } as usize;
-            let fcc = unsafe { CVPixelBufferGetPixelFormatType(image_buffer) };
+            let stride = CVPixelBufferGetBytesPerRow(image_buffer);
+            let width = CVPixelBufferGetWidth(image_buffer);
+            let height = CVPixelBufferGetHeight(image_buffer);
+            let fcc = CVPixelBufferGetPixelFormatType(image_buffer);
             let bytes_per_row = match raw_fcc_to_frameformat(fcc) {
                 Some(FrameFormat::YUYV) => width * 2,
                 Some(FrameFormat::RAWRGB) => width * 3,
@@ -528,65 +172,53 @@ mod internal {
     pub type CompressionData<'a> = (Cow<'a, [u8]>, FrameFormat, Option<Duration>);
     pub type DataPipe<'a> = (Sender<CompressionData<'a>>, Receiver<CompressionData<'a>>);
 
-    const ARCMUTPTR_IVAR: &CStr = c"_arcmutptr";
+    type FrameMessage = (Vec<u8>, FrameFormat, Option<Duration>);
 
-    static CALLBACK_CLASS: Lazy<&'static AnyClass> = Lazy::new(|| {
-        {
-            let mut decl = ClassBuilder::new(c"MyCaptureCallback", class!(NSObject)).unwrap();
+    struct CaptureCallbackIvars {
+        sender: Sender<FrameMessage>,
+    }
 
-            // frame stack
-            // oooh scary provenannce-breaking BULLSHIT AAAAAA I LOVE TYPE ERASURE
-            decl.add_ivar::<*const c_void>(ARCMUTPTR_IVAR); // ArkMutex, the not-arknights totally not gacha totally not ripoff new vidya game from l-pleasestop-npengtul
+    define_class!(
+        // SAFETY:
+        // - The superclass NSObject does not have any subclassing requirements.
+        // - `CaptureCallback` does not implement `Drop`.
+        #[unsafe(super(NSObject))]
+        #[name = "NokhwaCaptureCallback"]
+        #[ivars = CaptureCallbackIvars]
+        struct CaptureCallback;
 
-            fn arcmutptr_ivar(this: &AnyObject) -> *mut *const c_void {
-                let ivar = this.class().instance_variable(ARCMUTPTR_IVAR).unwrap();
-                unsafe { ivar.load_ptr::<*const c_void>(this) }
-            }
-            extern "C" fn my_callback_get_arcmutptr(this: &AnyObject, _: Sel) -> *const c_void {
-                unsafe { *arcmutptr_ivar(this) }
-            }
-            extern "C" fn my_callback_set_arcmutptr(
-                this: &AnyObject,
-                _: Sel,
-                new_arcmutptr: *const c_void,
+        unsafe impl NSObjectProtocol for CaptureCallback {}
+
+        // Delegate compliance method
+        unsafe impl AVCaptureVideoDataOutputSampleBufferDelegate for CaptureCallback {
+            #[unsafe(method(captureOutput:didOutputSampleBuffer:fromConnection:))]
+            fn capture_output_did_output_sample_buffer(
+                &self,
+                _output: &AVCaptureOutput,
+                sample_buffer: &CMSampleBuffer,
+                _connection: &AVCaptureConnection,
             ) {
-                unsafe { *arcmutptr_ivar(this) = new_arcmutptr };
-            }
-
-            // Delegate compliance method
-            // SAFETY: This assumes that the buffer byte size is a u8. Any other size will cause unsafety.
-            #[allow(non_snake_case)]
-            #[allow(non_upper_case_globals)]
-            extern "C" fn capture_out_callback(
-                this: &AnyObject,
-                _: Sel,
-                _: *mut AnyObject,
-                didOutputSampleBuffer: CMSampleBufferRef,
-                _: *mut AnyObject,
-            ) {
-                let image_buffer: CVImageBufferRef =
-                    unsafe { CMSampleBufferGetImageBuffer(didOutputSampleBuffer) };
-                unsafe {
-                    CVPixelBufferLockBaseAddress(image_buffer, 0);
+                let Some(image_buffer) = (unsafe { sample_buffer.image_buffer() }) else {
+                    return;
                 };
+                unsafe { CVPixelBufferLockBaseAddress(&image_buffer, CVPixelBufferLockFlags(0)) };
 
                 // Tightly pack possibly strided pixel data.
                 // nokhwa's decoders expect tightly-packed rows with no padding...
-                let buffer_as_vec = unsafe { copy_pixel_buffer_packed(image_buffer) };
+                let buffer_as_vec = unsafe { copy_pixel_buffer_packed(&image_buffer) };
 
-                unsafe { CVPixelBufferUnlockBaseAddress(image_buffer, 0) };
+                unsafe { CVPixelBufferUnlockBaseAddress(&image_buffer, CVPixelBufferLockFlags(0)) };
 
                 // CMSampleBufferGetPresentationTimeStamp returns the sensor
                 // capture instant on a monotonic clock (mach_absolute_time
                 // timebase).  Convert to Unix wallclock:
                 //   wall = SystemTime::now() - (mach_now - pts)
                 let capture_ts = {
-                    let pts = unsafe {
-                        core_media::CMSampleBufferGetPresentationTimeStamp(didOutputSampleBuffer)
-                    };
-                    if pts.timescale > 0 {
-                        let pts_nanos = (pts.value as u128).saturating_mul(1_000_000_000)
-                            / (pts.timescale as u128);
+                    let pts = unsafe { sample_buffer.presentation_time_stamp() };
+                    let (pts_value, pts_timescale) = (pts.value, pts.timescale);
+                    if pts_timescale > 0 {
+                        let pts_nanos = (pts_value as u128).saturating_mul(1_000_000_000)
+                            / (pts_timescale as u128);
                         let mono_now_nanos = mach_absolute_time_nanos() as u128;
                         let wall_now = std::time::SystemTime::now();
 
@@ -601,77 +233,37 @@ mod internal {
                     }
                 };
 
-                // oooooh scarey unsafe
-                // AAAAAAAAAAAAAAAAAAAAAAAAA
-                // https://c.tenor.com/0e_zWtFLOzQAAAAC/needy-streamer-overload-needy-girl-overdose.gif
-                let bufferlck_cv: *const c_void = unsafe { msg_send![this, bufferPtr] };
-                let buffer_sndr = unsafe {
-                    let ptr =
-                        bufferlck_cv.cast::<Sender<(Vec<u8>, FrameFormat, Option<Duration>)>>();
-                    Arc::from_raw(ptr)
-                };
-                if let Err(_) = buffer_sndr.send((buffer_as_vec, FrameFormat::GRAY, capture_ts)) {
-                    // FIXME: dont, what the fuck???
-                    return;
-                }
-                std::mem::forget(buffer_sndr);
+                // A send error means the receiving end is gone; nothing more to do.
+                let _ = self
+                    .ivars()
+                    .sender
+                    .send((buffer_as_vec, FrameFormat::GRAY, capture_ts));
             }
-
-            #[allow(non_snake_case)]
-            extern "C" fn capture_drop_callback(
-                _: &AnyObject,
-                _: Sel,
-                _: *mut AnyObject,
-                _: *mut AnyObject,
-                _: *mut AnyObject,
-            ) {
-            }
-
-            unsafe {
-                decl.add_method(
-                    sel!(bufferPtr),
-                    my_callback_get_arcmutptr as extern "C" fn(_, _) -> _,
-                );
-                decl.add_method(
-                    sel!(SetBufferPtr:),
-                    my_callback_set_arcmutptr as extern "C" fn(_, _, _),
-                );
-                decl.add_method(
-                    sel!(captureOutput:didOutputSampleBuffer:fromConnection:),
-                    capture_out_callback as extern "C" fn(_, _, _, _, _),
-                );
-                decl.add_method(
-                    sel!(captureOutput:didDropSampleBuffer:fromConnection:),
-                    capture_drop_callback as extern "C" fn(_, _, _, _, _),
-                );
-            }
-
-            decl.add_protocol(
-                AnyProtocol::get(c"AVCaptureVideoDataOutputSampleBufferDelegate").unwrap(),
-            );
-
-            decl.register()
         }
-    });
+    );
+
+    impl CaptureCallback {
+        fn new(sender: Sender<FrameMessage>) -> Retained<Self> {
+            let this = Self::alloc().set_ivars(CaptureCallbackIvars { sender });
+            unsafe { msg_send![super(this), init] }
+        }
+    }
 
     pub fn request_permission_with_callback(callback: impl Fn(bool) + Send + Sync + 'static) {
-        let cls = class!(AVCaptureDevice);
-
-        let objc_fn_block = RcBlock::new(move |granted: Bool| {
+        let block = RcBlock::new(move |granted: Bool| {
             callback(granted.as_bool());
         });
 
         unsafe {
-            let _: () = msg_send![cls, requestAccessForMediaType: AVMediaTypeVideo.clone(), completionHandler: &*objc_fn_block];
+            av::AVCaptureDevice::requestAccessForMediaType_completionHandler(
+                media_type_video(),
+                &block,
+            );
         }
     }
 
     pub fn current_authorization_status() -> AVAuthorizationStatus {
-        let cls = class!(AVCaptureDevice);
-        let status: AVAuthorizationStatus = unsafe {
-            msg_send![cls, authorizationStatusForMediaType:AVMediaType::Video.into_ns_str()]
-        };
-        status
+        unsafe { av::AVCaptureDevice::authorizationStatusForMediaType(media_type_video()) }
     }
 
     // fuck it, use deprecated APIs
@@ -686,20 +278,32 @@ mod internal {
         .devices())
     }
 
-    pub fn get_raw_device_info(index: CameraIndex, device: *mut AnyObject) -> CameraInfo {
-        let name = nsstr_to_str(unsafe { msg_send![device, localizedName] });
-        let manufacturer = nsstr_to_str(unsafe { msg_send![device, manufacturer] });
-        let position: AVCaptureDevicePosition = unsafe { msg_send![device, position] };
-        let lens_aperture: f32 = unsafe { msg_send![device, lensAperture] };
-        let device_type = nsstr_to_str(unsafe { msg_send![device, deviceType] });
-        let model_id = nsstr_to_str(unsafe { msg_send![device, modelID] });
-        let description = format!(
-            "{}: {} - {}, {:?} f{}",
-            manufacturer, model_id, device_type, position, lens_aperture
-        );
-        let misc = nsstr_to_str(unsafe { msg_send![device, uniqueID] });
+    fn position_name(position: AVCaptureDevicePosition) -> &'static str {
+        match position {
+            AVCaptureDevicePosition::Back => "Back",
+            AVCaptureDevicePosition::Front => "Front",
+            _ => "Unspecified",
+        }
+    }
 
-        CameraInfo::new(name.as_ref(), &description, misc.as_ref(), index)
+    pub fn get_raw_device_info(index: CameraIndex, device: &av::AVCaptureDevice) -> CameraInfo {
+        let name = unsafe { device.localizedName() }.to_string();
+        let manufacturer = unsafe { device.manufacturer() }.to_string();
+        let position = unsafe { device.position() };
+        let lens_aperture = unsafe { device.lensAperture() };
+        let device_type = unsafe { device.deviceType() }.to_string();
+        let model_id = unsafe { device.modelID() }.to_string();
+        let description = format!(
+            "{}: {} - {}, {} f{}",
+            manufacturer,
+            model_id,
+            device_type,
+            position_name(position),
+            lens_aperture
+        );
+        let misc = unsafe { device.uniqueID() }.to_string();
+
+        CameraInfo::new(&name, &description, &misc, index)
     }
 
     #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
@@ -714,36 +318,24 @@ mod internal {
         External,
     }
 
-    impl From<AVCaptureDeviceType> for *mut AnyObject {
-        fn from(device_type: AVCaptureDeviceType) -> Self {
-            match device_type {
-                AVCaptureDeviceType::Dual => str_to_nsstr("AVCaptureDeviceTypeBuiltInDualCamera"),
-                AVCaptureDeviceType::DualWide => {
-                    str_to_nsstr("AVCaptureDeviceTypeBuiltInDualWideCamera")
-                }
-                AVCaptureDeviceType::Triple => {
-                    str_to_nsstr("AVCaptureDeviceTypeBuiltInTripleCamera")
-                }
-                AVCaptureDeviceType::WideAngle => {
-                    str_to_nsstr("AVCaptureDeviceTypeBuiltInWideAngleCamera")
-                }
-                AVCaptureDeviceType::UltraWide => {
-                    str_to_nsstr("AVCaptureDeviceTypeBuiltInUltraWideCamera")
-                }
-                AVCaptureDeviceType::Telephoto => {
-                    str_to_nsstr("AVCaptureDeviceTypeBuiltInTelephotoCamera")
-                }
-                AVCaptureDeviceType::TrueDepth => {
-                    str_to_nsstr("AVCaptureDeviceTypeBuiltInTrueDepthCamera")
-                }
-                AVCaptureDeviceType::External => str_to_nsstr("AVCaptureDeviceTypeExternal"),
+    impl AVCaptureDeviceType {
+        // These are spelled out rather than read from the AVFoundation constants, as
+        // some of the constants don't exist on every platform.
+        fn name(self) -> &'static str {
+            match self {
+                AVCaptureDeviceType::Dual => "AVCaptureDeviceTypeBuiltInDualCamera",
+                AVCaptureDeviceType::DualWide => "AVCaptureDeviceTypeBuiltInDualWideCamera",
+                AVCaptureDeviceType::Triple => "AVCaptureDeviceTypeBuiltInTripleCamera",
+                AVCaptureDeviceType::WideAngle => "AVCaptureDeviceTypeBuiltInWideAngleCamera",
+                AVCaptureDeviceType::UltraWide => "AVCaptureDeviceTypeBuiltInUltraWideCamera",
+                AVCaptureDeviceType::Telephoto => "AVCaptureDeviceTypeBuiltInTelephotoCamera",
+                AVCaptureDeviceType::TrueDepth => "AVCaptureDeviceTypeBuiltInTrueDepthCamera",
+                AVCaptureDeviceType::External => "AVCaptureDeviceTypeExternal",
             }
         }
-    }
 
-    impl AVCaptureDeviceType {
-        pub fn into_ns_str(self) -> *mut AnyObject {
-            <*mut AnyObject>::from(self)
+        pub fn into_ns_str(self) -> Retained<NSString> {
+            NSString::from_str(self.name())
         }
     }
 
@@ -761,93 +353,54 @@ mod internal {
         Video,
     }
 
-    impl From<AVMediaType> for *mut AnyObject {
-        fn from(media_type: AVMediaType) -> Self {
-            match media_type {
-                AVMediaType::Audio => unsafe { AVMediaTypeAudio.0 },
-                AVMediaType::ClosedCaption => unsafe { AVMediaTypeClosedCaption.0 },
-                AVMediaType::DepthData => unsafe { AVMediaTypeDepthData.0 },
-                AVMediaType::Metadata => unsafe { AVMediaTypeMetadata.0 },
-                AVMediaType::MetadataObject => unsafe { AVMediaTypeMetadataObject.0 },
-                AVMediaType::Muxed => unsafe { AVMediaTypeMuxed.0 },
-                AVMediaType::Subtitle => unsafe { AVMediaTypeSubtitle.0 },
-                AVMediaType::Text => unsafe { AVMediaTypeText.0 },
-                AVMediaType::Timecode => unsafe { AVMediaTypeTimecode.0 },
-                AVMediaType::Video => unsafe { AVMediaTypeVideo.0 },
-            }
+    impl AVMediaType {
+        pub fn into_ns_str(self) -> &'static NSString {
+            let media_type = unsafe {
+                match self {
+                    AVMediaType::Audio => av::AVMediaTypeAudio,
+                    AVMediaType::ClosedCaption => av::AVMediaTypeClosedCaption,
+                    AVMediaType::DepthData => av::AVMediaTypeDepthData,
+                    AVMediaType::Metadata => av::AVMediaTypeMetadata,
+                    AVMediaType::MetadataObject => av::AVMediaTypeMetadataObject,
+                    AVMediaType::Muxed => av::AVMediaTypeMuxed,
+                    AVMediaType::Subtitle => av::AVMediaTypeSubtitle,
+                    AVMediaType::Text => av::AVMediaTypeText,
+                    AVMediaType::Timecode => av::AVMediaTypeTimecode,
+                    AVMediaType::Video => av::AVMediaTypeVideo,
+                }
+            };
+            media_type.expect("AVMediaType constant is not available")
         }
     }
 
-    impl TryFrom<*mut AnyObject> for AVMediaType {
+    impl TryFrom<&NSString> for AVMediaType {
         type Error = NokhwaError;
 
-        fn try_from(value: *mut AnyObject) -> Result<Self, Self::Error> {
-            unsafe {
-                if compare_ns_string(value, (AVMediaTypeAudio).clone()) {
-                    Ok(AVMediaType::Audio)
-                } else if compare_ns_string(value, (AVMediaTypeClosedCaption).clone()) {
-                    Ok(AVMediaType::ClosedCaption)
-                } else if compare_ns_string(value, (AVMediaTypeDepthData).clone()) {
-                    Ok(AVMediaType::DepthData)
-                } else if compare_ns_string(value, (AVMediaTypeMetadata).clone()) {
-                    Ok(AVMediaType::Metadata)
-                } else if compare_ns_string(value, (AVMediaTypeMetadataObject).clone()) {
-                    Ok(AVMediaType::MetadataObject)
-                } else if compare_ns_string(value, (AVMediaTypeMuxed).clone()) {
-                    Ok(AVMediaType::Muxed)
-                } else if compare_ns_string(value, (AVMediaTypeSubtitle).clone()) {
-                    Ok(AVMediaType::Subtitle)
-                } else if compare_ns_string(value, (AVMediaTypeText).clone()) {
-                    Ok(AVMediaType::Text)
-                } else if compare_ns_string(value, (AVMediaTypeTimecode).clone()) {
-                    Ok(AVMediaType::Timecode)
-                } else if compare_ns_string(value, (AVMediaTypeVideo).clone()) {
-                    Ok(AVMediaType::Video)
-                } else {
-                    let name = nsstr_to_str(value);
-                    Err(NokhwaError::GetPropertyError {
-                        property: "AVMediaType".to_string(),
-                        error: format!("Invalid AVMediaType {name}"),
-                    })
-                }
-            }
+        fn try_from(value: &NSString) -> Result<Self, Self::Error> {
+            const ALL: [AVMediaType; 10] = [
+                AVMediaType::Audio,
+                AVMediaType::ClosedCaption,
+                AVMediaType::DepthData,
+                AVMediaType::Metadata,
+                AVMediaType::MetadataObject,
+                AVMediaType::Muxed,
+                AVMediaType::Subtitle,
+                AVMediaType::Text,
+                AVMediaType::Timecode,
+                AVMediaType::Video,
+            ];
+            ALL.into_iter()
+                .find(|media_type| value.isEqualToString(media_type.into_ns_str()))
+                .ok_or_else(|| NokhwaError::GetPropertyError {
+                    property: "AVMediaType".to_string(),
+                    error: format!("Invalid AVMediaType {value}"),
+                })
         }
-    }
-
-    impl AVMediaType {
-        pub fn into_ns_str(self) -> *mut AnyObject {
-            <*mut AnyObject>::from(self)
-        }
-    }
-
-    #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
-    #[repr(isize)]
-    pub enum AVCaptureDevicePosition {
-        Unspecified = 0,
-        Back = 1,
-        Front = 2,
-    }
-
-    unsafe impl Encode for AVCaptureDevicePosition {
-        const ENCODING: Encoding = NSInteger::ENCODING;
-    }
-
-    #[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
-    #[repr(isize)]
-    pub enum AVAuthorizationStatus {
-        NotDetermined = 0,
-        Restricted = 1,
-        Denied = 2,
-        Authorized = 3,
-    }
-
-    unsafe impl Encode for AVAuthorizationStatus {
-        const ENCODING: Encoding = NSInteger::ENCODING;
     }
 
     pub struct AVCaptureVideoCallback {
-        delegate: *mut AnyObject,
-        queue: NSObject,
+        delegate: Retained<CaptureCallback>,
+        queue: DispatchRetained<DispatchQueue>,
     }
 
     impl AVCaptureVideoCallback {
@@ -855,97 +408,91 @@ mod internal {
             device_spec: &CStr,
             buffer: &Arc<Sender<(Vec<u8>, FrameFormat, Option<Duration>)>>,
         ) -> Result<Self, NokhwaError> {
-            let cls: &AnyClass = &CALLBACK_CLASS;
-            let delegate: *mut AnyObject = unsafe { msg_send![cls, alloc] };
-            let delegate: *mut AnyObject = unsafe { msg_send![delegate, init] };
-            let buffer_as_ptr = {
-                let arc_raw = Arc::as_ptr(buffer);
-                arc_raw.cast::<c_void>()
-            };
-            unsafe {
-                let _: () = msg_send![delegate, SetBufferPtr: buffer_as_ptr];
-            }
-
-            let queue = unsafe {
-                dispatch_queue_create(device_spec.as_ptr(), NSObject(std::ptr::null_mut()))
-            };
+            let delegate = CaptureCallback::new(Sender::clone(buffer));
+            let queue = DispatchQueue::new(&device_spec.to_string_lossy(), None);
 
             Ok(AVCaptureVideoCallback { delegate, queue })
         }
 
-        pub fn data_len(&self) -> usize {
-            unsafe { msg_send![self.delegate, dataLength] }
+        pub fn delegate(
+            &self,
+        ) -> &ProtocolObject<dyn AVCaptureVideoDataOutputSampleBufferDelegate> {
+            ProtocolObject::from_ref(&*self.delegate)
         }
 
-        pub fn inner(&self) -> *mut AnyObject {
-            self.delegate
-        }
-
-        pub fn queue(&self) -> &NSObject {
+        pub fn queue(&self) -> &DispatchQueue {
             &self.queue
         }
     }
 
-    create_boilerplate_impl! {
-        [pub AVFrameRateRange],
-        [pub AVCaptureDeviceDiscoverySession],
-        [pub AVCaptureDeviceInput],
-        [pub AVCaptureSession]
+    impl Drop for AVCaptureVideoCallback {
+        fn drop(&mut self) {
+            // The queue is serial: once this empty block has run, no callback is still
+            // using the delegate.
+            self.queue.exec_sync(|| {});
+        }
+    }
+
+    pub struct AVFrameRateRange {
+        inner: Retained<av::AVFrameRateRange>,
+    }
+
+    impl From<Retained<av::AVFrameRateRange>> for AVFrameRateRange {
+        fn from(inner: Retained<av::AVFrameRateRange>) -> Self {
+            AVFrameRateRange { inner }
+        }
     }
 
     impl AVFrameRateRange {
+        pub fn inner(&self) -> &Retained<av::AVFrameRateRange> {
+            &self.inner
+        }
+
         pub fn max(&self) -> f64 {
-            unsafe { msg_send![self.inner, maxFrameRate] }
+            unsafe { self.inner.maxFrameRate() }
         }
 
         pub fn min(&self) -> f64 {
-            unsafe { msg_send![self.inner, minFrameRate] }
+            unsafe { self.inner.minFrameRate() }
         }
     }
 
     #[derive(Debug)]
     pub struct AVCaptureDeviceFormat {
-        pub(crate) internal: *mut AnyObject,
+        pub(crate) internal: Retained<av::AVCaptureDeviceFormat>,
         pub resolution: CMVideoDimensions,
         pub fps_list: Vec<f64>,
         pub fourcc: FrameFormat,
     }
 
-    fn format_description(format: *mut AnyObject) -> CMFormatDescriptionRef {
-        let description: *mut OpaqueCMFormatDescription =
-            unsafe { msg_send![format, formatDescription] };
-        description.cast()
-    }
-
-    impl TryFrom<*mut AnyObject> for AVCaptureDeviceFormat {
+    impl TryFrom<Retained<av::AVCaptureDeviceFormat>> for AVCaptureDeviceFormat {
         type Error = NokhwaError;
 
-        fn try_from(value: *mut AnyObject) -> Result<Self, Self::Error> {
-            let media_type_raw: *mut AnyObject = unsafe { msg_send![value, mediaType] };
-            let media_type = AVMediaType::try_from(media_type_raw)?;
+        fn try_from(value: Retained<av::AVCaptureDeviceFormat>) -> Result<Self, Self::Error> {
+            let media_type_raw = unsafe { value.mediaType() };
+            let media_type = AVMediaType::try_from(&*media_type_raw)?;
             if media_type != AVMediaType::Video {
                 return Err(NokhwaError::StructureError {
                     structure: "AVMediaType".to_string(),
                     error: "Not Video".to_string(),
                 });
             }
-            let mut fps_list = ns_arr_to_vec::<AVFrameRateRange>(unsafe {
-                msg_send![value, videoSupportedFrameRateRanges]
-            })
-            .into_iter()
-            .flat_map(|v| {
-                if v.min() != 0_f64 && v.min() != 1_f64 {
-                    vec![v.min(), v.max()]
-                } else {
-                    vec![v.max()] // this gets deduped!
-                }
-            })
-            .collect::<Vec<f64>>();
+            let mut fps_list = unsafe { value.videoSupportedFrameRateRanges() }
+                .iter()
+                .map(AVFrameRateRange::from)
+                .flat_map(|v| {
+                    if v.min() != 0_f64 && v.min() != 1_f64 {
+                        vec![v.min(), v.max()]
+                    } else {
+                        vec![v.max()] // this gets deduped!
+                    }
+                })
+                .collect::<Vec<f64>>();
             fps_list.sort_by(|n, m| n.partial_cmp(m).unwrap_or(Ordering::Equal));
             fps_list.dedup();
-            let description_obj = format_description(value);
-            let resolution = unsafe { CMVideoFormatDescriptionGetDimensions(description_obj) };
-            let fcc_raw = unsafe { CMFormatDescriptionGetMediaSubType(description_obj) };
+            let description = unsafe { value.formatDescription() };
+            let resolution = unsafe { CMVideoFormatDescriptionGetDimensions(&description) };
+            let fcc_raw = unsafe { description.media_sub_type() };
             #[allow(non_upper_case_globals)]
             let fourcc = match raw_fcc_to_frameformat(fcc_raw) {
                 Some(fcc) => fcc,
@@ -966,16 +513,28 @@ mod internal {
         }
     }
 
+    pub struct AVCaptureDeviceDiscoverySession {
+        inner: Retained<av::AVCaptureDeviceDiscoverySession>,
+    }
+
     impl AVCaptureDeviceDiscoverySession {
+        pub fn inner(&self) -> &Retained<av::AVCaptureDeviceDiscoverySession> {
+            &self.inner
+        }
+
         pub fn new(device_types: Vec<AVCaptureDeviceType>) -> Result<Self, NokhwaError> {
-            let device_types = vec_to_ns_arr(device_types);
-            let position = 0 as NSInteger;
+            let device_types = device_types
+                .into_iter()
+                .map(AVCaptureDeviceType::into_ns_str)
+                .collect::<Vec<_>>();
+            let device_types = NSArray::from_retained_slice(&device_types);
 
-            let media_type_video = unsafe { AVMediaTypeVideo.clone() }.0;
-
-            let discovery_session_cls = class!(AVCaptureDeviceDiscoverySession);
-            let discovery_session: *mut AnyObject = unsafe {
-                msg_send![discovery_session_cls, discoverySessionWithDeviceTypes: device_types, mediaType: media_type_video, position: position]
+            let discovery_session = unsafe {
+                av::AVCaptureDeviceDiscoverySession::discoverySessionWithDeviceTypes_mediaType_position(
+                    &device_types,
+                    Some(media_type_video()),
+                    AVCaptureDevicePosition::Unspecified,
+                )
             };
 
             Ok(AVCaptureDeviceDiscoverySession {
@@ -995,30 +554,25 @@ mod internal {
         }
 
         pub fn devices(&self) -> Vec<CameraInfo> {
-            let device_ns_array: *mut AnyObject = unsafe { msg_send![self.inner, devices] };
-            let objects_len = ns_arr_count(device_ns_array);
-            let mut devices = Vec::with_capacity(objects_len);
-            for index in 0..objects_len {
-                let device = ns_arr_get(device_ns_array, index);
-                devices.push(get_raw_device_info(
-                    CameraIndex::Index(index as u32),
-                    device,
-                ));
-            }
-
-            devices
+            unsafe { self.inner.devices() }
+                .iter()
+                .enumerate()
+                .map(|(index, device)| {
+                    get_raw_device_info(CameraIndex::Index(index as u32), &device)
+                })
+                .collect()
         }
     }
 
     pub struct AVCaptureDevice {
-        inner: *mut AnyObject,
+        inner: Retained<av::AVCaptureDevice>,
         device: CameraInfo,
         locked: bool,
     }
 
     impl AVCaptureDevice {
-        pub fn inner(&self) -> *mut AnyObject {
-            self.inner
+        pub fn inner(&self) -> &Retained<av::AVCaptureDevice> {
+            &self.inner
         }
     }
 
@@ -1044,19 +598,14 @@ mod internal {
         }
 
         pub fn from_id(id: &str, index_hint: Option<CameraIndex>) -> Result<Self, NokhwaError> {
-            let nsstr_id = str_to_nsstr(id);
-            let avfoundation_capture_cls = class!(AVCaptureDevice);
-            let capture: *mut AnyObject =
-                unsafe { msg_send![avfoundation_capture_cls, deviceWithUniqueID: nsstr_id] };
-            if capture.is_null() {
-                return Err(NokhwaError::OpenDeviceError(
-                    id.to_string(),
-                    "Device is null".to_string(),
-                ));
-            }
+            let capture =
+                unsafe { av::AVCaptureDevice::deviceWithUniqueID(&NSString::from_str(id)) }
+                    .ok_or_else(|| {
+                        NokhwaError::OpenDeviceError(id.to_string(), "Device is null".to_string())
+                    })?;
             let camera_info = get_raw_device_info(
                 index_hint.unwrap_or_else(|| CameraIndex::String(id.to_string())),
-                capture,
+                &capture,
             );
 
             Ok(AVCaptureDevice {
@@ -1071,9 +620,10 @@ mod internal {
         }
 
         pub fn supported_formats_raw(&self) -> Result<Vec<AVCaptureDeviceFormat>, NokhwaError> {
-            try_ns_arr_to_vec::<AVCaptureDeviceFormat, NokhwaError>(unsafe {
-                msg_send![self.inner, formats]
-            })
+            unsafe { self.inner.formats() }
+                .iter()
+                .map(AVCaptureDeviceFormat::try_from)
+                .collect()
         }
 
         pub fn supported_formats(&self) -> Result<Vec<CameraFormat>, NokhwaError> {
@@ -1095,17 +645,11 @@ mod internal {
         }
 
         pub fn already_in_use(&self) -> bool {
-            unsafe {
-                let result: bool = msg_send![self.inner(), isInUseByAnotherApplication];
-                result
-            }
+            unsafe { self.inner.isInUseByAnotherApplication() }
         }
 
         pub fn is_suspended(&self) -> bool {
-            unsafe {
-                let result: bool = msg_send![self.inner, isSuspended];
-                result
-            }
+            unsafe { self.inner.isSuspended() }
         }
 
         pub fn lock(&self) -> Result<(), NokhwaError> {
@@ -1118,95 +662,72 @@ mod internal {
                     error: "Already in use".to_string(),
                 });
             }
-            let mut err_ptr: *mut AnyObject = std::ptr::null_mut();
-            let accepted: bool =
-                unsafe { msg_send![self.inner, lockForConfiguration: &mut err_ptr] };
-            if !err_ptr.is_null() {
-                return Err(NokhwaError::SetPropertyError {
+            unsafe { self.inner.lockForConfiguration() }.map_err(|err| {
+                NokhwaError::SetPropertyError {
                     property: "lockForConfiguration".to_string(),
                     value: "Locked".to_string(),
-                    error: "Cannot lock for configuration".to_string(),
-                });
-            }
-            // Space these out for debug purposes
-            if !accepted {
-                return Err(NokhwaError::SetPropertyError {
-                    property: "lockForConfiguration".to_string(),
-                    value: "Locked".to_string(),
-                    error: "Lock Rejected".to_string(),
-                });
-            }
-            Ok(())
+                    error: format!(
+                        "Cannot lock for configuration: {}",
+                        err.localizedDescription()
+                    ),
+                }
+            })
         }
 
         pub fn unlock(&mut self) {
             if self.locked {
                 self.locked = false;
-                unsafe { msg_send![self.inner, unlockForConfiguration] }
+                unsafe { self.inner.unlockForConfiguration() }
             }
         }
 
         // thank you ffmpeg
         pub fn set_all(&mut self, descriptor: CameraFormat) -> Result<(), NokhwaError> {
             self.lock()?;
-            let format_list = try_ns_arr_to_vec::<AVCaptureDeviceFormat, NokhwaError>(unsafe {
-                msg_send![self.inner, formats]
-            })?;
+            let format_list = self.supported_formats_raw()?;
 
-            let mut selected_format: *mut AnyObject = std::ptr::null_mut();
-            let mut selected_range: *mut AnyObject = std::ptr::null_mut();
+            let mut selected: Option<(
+                Retained<av::AVCaptureDeviceFormat>,
+                Retained<av::AVFrameRateRange>,
+            )> = None;
 
             for format in format_list {
-                let format_desc_ref = format_description(format.internal);
-                let dimensions = unsafe { CMVideoFormatDescriptionGetDimensions(format_desc_ref) };
-
-                if dimensions.height == descriptor.resolution().height() as i32
-                    && dimensions.width == descriptor.resolution().width() as i32
+                if format.resolution.height == descriptor.resolution().height() as i32
+                    && format.resolution.width == descriptor.resolution().width() as i32
                 {
                     // Find a frame-rate range *on this same format* supporting
                     // the requested FPS. A device (e.g. a Logitech C930e)
                     // exposes the same resolution in several formats and supported FPSes.
-                    let mut range_for_format: *mut AnyObject = std::ptr::null_mut();
-                    for range in ns_arr_to_vec::<AVFrameRateRange>(unsafe {
-                        msg_send![format.internal, videoSupportedFrameRateRanges]
-                    }) {
-                        let max_fps: f64 = unsafe { msg_send![range.inner, maxFrameRate] };
+                    for range in unsafe { format.internal.videoSupportedFrameRateRanges() }.iter() {
+                        let max_fps = unsafe { range.maxFrameRate() };
                         // Older Apple cameras (i.e. iMac 2013) return 29.97000002997 as FPS.
                         if (f64::from(descriptor.frame_rate()) - max_fps).abs() < 0.999 {
-                            range_for_format = range.inner;
+                            selected = Some((format.internal.clone(), range));
                             break;
                         }
                     }
 
-                    if !range_for_format.is_null() {
-                        selected_format = format.internal;
-                        selected_range = range_for_format;
+                    if selected.is_some() {
                         break;
                     }
                 }
             }
-            if selected_range.is_null() || selected_format.is_null() {
+            let Some((selected_format, selected_range)) = selected else {
                 return Err(NokhwaError::SetPropertyError {
                     property: "CameraFormat".to_string(),
                     value: descriptor.to_string(),
                     error: "Not Found/Rejected/Unsupported".to_string(),
                 });
-            }
+            };
 
-            let activefmtkey = str_to_nsstr("activeFormat");
-            let min_frame_duration = str_to_nsstr("minFrameDuration");
-            let active_video_min_frame_duration = str_to_nsstr("activeVideoMinFrameDuration");
-            let active_video_max_frame_duration = str_to_nsstr("activeVideoMaxFrameDuration");
-            let _: () =
-                unsafe { msg_send![self.inner, setValue: selected_format, forKey: activefmtkey] };
-            let min_frame_duration: *mut AnyObject =
-                unsafe { msg_send![selected_range, valueForKey: min_frame_duration] };
-            let _: () = unsafe {
-                msg_send![self.inner, setValue: min_frame_duration, forKey: active_video_min_frame_duration]
-            };
-            let _: () = unsafe {
-                msg_send![self.inner, setValue: min_frame_duration, forKey: active_video_max_frame_duration]
-            };
+            unsafe {
+                self.inner.setActiveFormat(&selected_format);
+                let min_frame_duration = selected_range.minFrameDuration();
+                self.inner
+                    .setActiveVideoMinFrameDuration(min_frame_duration);
+                self.inner
+                    .setActiveVideoMaxFrameDuration(min_frame_duration);
+            }
             self.unlock();
             Ok(())
         }
@@ -1219,18 +740,19 @@ mod internal {
         // 5 => Exposure ISO
         // 6 => Exposure Duration
         pub fn get_controls(&self) -> Result<Vec<CameraControl>, NokhwaError> {
-            let active_format: *mut AnyObject = unsafe { msg_send![self.inner, activeFormat] };
+            let device = &*self.inner;
+            let active_format = unsafe { device.activeFormat() };
 
             let mut controls = vec![];
             // get focus modes
 
-            let focus_current: NSInteger = unsafe { msg_send![self.inner, focusMode] };
-            let focus_locked: bool =
-                unsafe { msg_send![self.inner, isFocusModeSupported: 0 as NSInteger] };
-            let focus_auto: bool =
-                unsafe { msg_send![self.inner, isFocusModeSupported: 1 as NSInteger] };
-            let focus_continuous: bool =
-                unsafe { msg_send![self.inner, isFocusModeSupported: 2 as NSInteger] };
+            let focus_current = unsafe { device.focusMode() }.0 as i64;
+            let focus_locked =
+                unsafe { device.isFocusModeSupported(av::AVCaptureFocusMode::Locked) };
+            let focus_auto =
+                unsafe { device.isFocusModeSupported(av::AVCaptureFocusMode::AutoFocus) };
+            let focus_continuous =
+                unsafe { device.isFocusModeSupported(av::AVCaptureFocusMode::ContinuousAutoFocus) };
 
             {
                 let mut supported_focus_values = vec![];
@@ -1249,24 +771,23 @@ mod internal {
                     KnownCameraControl::Focus,
                     "FocusMode".to_string(),
                     ControlValueDescription::Enum {
-                        value: focus_current as i64,
+                        value: focus_current,
                         possible: supported_focus_values,
-                        default: focus_current as i64,
+                        default: focus_current,
                     },
                     vec![],
                     true,
                 ));
             }
 
-            let focus_poi_supported: bool =
-                unsafe { msg_send![self.inner, isFocusPointOfInterestSupported] };
-            let focus_poi: CGPoint = unsafe { msg_send![self.inner, focusPointOfInterest] };
+            let focus_poi_supported = unsafe { device.isFocusPointOfInterestSupported() };
+            let focus_poi = unsafe { device.focusPointOfInterest() };
 
             controls.push(CameraControl::new(
                 KnownCameraControl::Other(0),
                 "FocusPointOfInterest".to_string(),
                 ControlValueDescription::Point {
-                    value: (focus_poi.x as f64, focus_poi.y as f64),
+                    value: (focus_poi.x, focus_poi.y),
                     default: (0.5, 0.5),
                 },
                 if !focus_poi_supported {
@@ -1280,9 +801,8 @@ mod internal {
                 focus_auto || focus_continuous,
             ));
 
-            let focus_manual: bool =
-                unsafe { msg_send![self.inner, isLockingFocusWithCustomLensPositionSupported] };
-            let focus_lenspos: f32 = unsafe { msg_send![self.inner, lensPosition] };
+            let focus_manual = unsafe { device.isLockingFocusWithCustomLensPositionSupported() };
+            let focus_lenspos = unsafe { device.lensPosition() };
 
             controls.push(CameraControl::new(
                 KnownCameraControl::Other(1),
@@ -1306,15 +826,16 @@ mod internal {
             ));
 
             // get exposures
-            let exposure_current: NSInteger = unsafe { msg_send![self.inner, exposureMode] };
-            let exposure_locked: bool =
-                unsafe { msg_send![self.inner, isExposureModeSupported: 0 as NSInteger] };
-            let exposure_auto: bool =
-                unsafe { msg_send![self.inner, isExposureModeSupported: 1 as NSInteger] };
-            let exposure_continuous: bool =
-                unsafe { msg_send![self.inner, isExposureModeSupported: 2 as NSInteger] };
-            let exposure_custom: bool =
-                unsafe { msg_send![self.inner, isExposureModeSupported: 3 as NSInteger] };
+            let exposure_current = unsafe { device.exposureMode() }.0 as i64;
+            let exposure_locked =
+                unsafe { device.isExposureModeSupported(av::AVCaptureExposureMode::Locked) };
+            let exposure_auto =
+                unsafe { device.isExposureModeSupported(av::AVCaptureExposureMode::AutoExpose) };
+            let exposure_continuous = unsafe {
+                device.isExposureModeSupported(av::AVCaptureExposureMode::ContinuousAutoExposure)
+            };
+            let exposure_custom =
+                unsafe { device.isExposureModeSupported(av::AVCaptureExposureMode::Custom) };
 
             {
                 let mut supported_exposure_values = vec![];
@@ -1336,24 +857,23 @@ mod internal {
                     KnownCameraControl::Exposure,
                     "ExposureMode".to_string(),
                     ControlValueDescription::Enum {
-                        value: exposure_current as i64,
+                        value: exposure_current,
                         possible: supported_exposure_values,
-                        default: exposure_current as i64,
+                        default: exposure_current,
                     },
                     vec![],
                     true,
                 ));
             }
 
-            let exposure_poi_supported: bool =
-                unsafe { msg_send![self.inner, isExposurePointOfInterestSupported] };
-            let exposure_poi: CGPoint = unsafe { msg_send![self.inner, exposurePointOfInterest] };
+            let exposure_poi_supported = unsafe { device.isExposurePointOfInterestSupported() };
+            let exposure_poi = unsafe { device.exposurePointOfInterest() };
 
             controls.push(CameraControl::new(
                 KnownCameraControl::Other(2),
                 "ExposurePointOfInterest".to_string(),
                 ControlValueDescription::Point {
-                    value: (exposure_poi.x as f64, exposure_poi.y as f64),
+                    value: (exposure_poi.x, exposure_poi.y),
                     default: (0.5, 0.5),
                 },
                 if !exposure_poi_supported {
@@ -1367,14 +887,10 @@ mod internal {
                 focus_auto || focus_continuous,
             ));
 
-            let expposure_face_driven_supported: bool =
-                unsafe { msg_send![self.inner, isFaceDrivenAutoExposureEnabled] };
-            let exposure_face_driven: bool = unsafe {
-                msg_send![
-                    self.inner,
-                    automaticallyAdjustsFaceDrivenAutoExposureEnabled
-                ]
-            };
+            let expposure_face_driven_supported =
+                unsafe { device.isFaceDrivenAutoExposureEnabled() };
+            let exposure_face_driven =
+                unsafe { device.automaticallyAdjustsFaceDrivenAutoExposureEnabled() };
 
             controls.push(CameraControl::new(
                 KnownCameraControl::Other(3),
@@ -1394,9 +910,9 @@ mod internal {
                 exposure_poi_supported,
             ));
 
-            let exposure_bias: f32 = unsafe { msg_send![self.inner, exposureTargetBias] };
-            let exposure_bias_min: f32 = unsafe { msg_send![self.inner, minExposureTargetBias] };
-            let exposure_bias_max: f32 = unsafe { msg_send![self.inner, maxExposureTargetBias] };
+            let exposure_bias = unsafe { device.exposureTargetBias() };
+            let exposure_bias_min = unsafe { device.minExposureTargetBias() };
+            let exposure_bias_max = unsafe { device.maxExposureTargetBias() };
 
             controls.push(CameraControl::new(
                 KnownCameraControl::Other(4),
@@ -1412,11 +928,9 @@ mod internal {
                 true,
             ));
 
-            let exposure_duration: CMTime = unsafe { msg_send![self.inner, exposureDuration] };
-            let exposure_duration_min: CMTime =
-                unsafe { msg_send![active_format, minExposureDuration] };
-            let exposure_duration_max: CMTime =
-                unsafe { msg_send![active_format, maxExposureDuration] };
+            let exposure_duration = unsafe { device.exposureDuration() };
+            let exposure_duration_min = unsafe { active_format.minExposureDuration() };
+            let exposure_duration_max = unsafe { active_format.maxExposureDuration() };
 
             controls.push(CameraControl::new(
                 KnownCameraControl::Gamma,
@@ -1426,7 +940,7 @@ mod internal {
                     max: exposure_duration_max.value,
                     value: exposure_duration.value,
                     step: 1,
-                    default: unsafe { AVCaptureExposureDurationCurrent.value },
+                    default: unsafe { AVCaptureExposureDurationCurrent }.value,
                 },
                 if exposure_custom {
                     vec![
@@ -1439,9 +953,9 @@ mod internal {
                 exposure_custom,
             ));
 
-            let exposure_iso: f32 = unsafe { msg_send![self.inner, ISO] };
-            let exposure_iso_min: f32 = unsafe { msg_send![active_format, minISO] };
-            let exposure_iso_max: f32 = unsafe { msg_send![active_format, maxISO] };
+            let exposure_iso = unsafe { device.ISO() };
+            let exposure_iso_min = unsafe { active_format.minISO() };
+            let exposure_iso_max = unsafe { active_format.maxISO() };
 
             controls.push(CameraControl::new(
                 KnownCameraControl::Brightness,
@@ -1464,7 +978,7 @@ mod internal {
                 exposure_custom,
             ));
 
-            let lens_aperture: f32 = unsafe { msg_send![self.inner, lensAperture] };
+            let lens_aperture = unsafe { device.lensAperture() };
 
             controls.push(CameraControl::new(
                 KnownCameraControl::Iris,
@@ -1479,14 +993,18 @@ mod internal {
             ));
 
             // get whiteblaance
-            let white_balance_current: NSInteger =
-                unsafe { msg_send![self.inner, whiteBalanceMode] };
-            let white_balance_manual: bool =
-                unsafe { msg_send![self.inner, isWhiteBalanceModeSupported: 0 as NSInteger] };
-            let white_balance_auto: bool =
-                unsafe { msg_send![self.inner, isWhiteBalanceModeSupported: 1 as NSInteger] };
-            let white_balance_continuous: bool =
-                unsafe { msg_send![self.inner, isWhiteBalanceModeSupported: 2 as NSInteger] };
+            let white_balance_current = unsafe { device.whiteBalanceMode() }.0 as i64;
+            let white_balance_manual = unsafe {
+                device.isWhiteBalanceModeSupported(av::AVCaptureWhiteBalanceMode::Locked)
+            };
+            let white_balance_auto = unsafe {
+                device.isWhiteBalanceModeSupported(av::AVCaptureWhiteBalanceMode::AutoWhiteBalance)
+            };
+            let white_balance_continuous = unsafe {
+                device.isWhiteBalanceModeSupported(
+                    av::AVCaptureWhiteBalanceMode::ContinuousAutoWhiteBalance,
+                )
+            };
 
             {
                 let mut possible = vec![];
@@ -1505,7 +1023,7 @@ mod internal {
                     KnownCameraControl::WhiteBalance,
                     "WhiteBalanceMode".to_string(),
                     ControlValueDescription::Enum {
-                        value: white_balance_current as i64,
+                        value: white_balance_current,
                         possible,
                         default: 0,
                     },
@@ -1514,17 +1032,11 @@ mod internal {
                 ));
             }
 
-            let white_balance_gains: AVCaptureWhiteBalanceGains =
-                unsafe { msg_send![self.inner, deviceWhiteBalanceGains] };
-            let white_balance_default: AVCaptureWhiteBalanceGains =
-                unsafe { msg_send![self.inner, grayWorldDeviceWhiteBalanceGains] };
-            let white_balance_max: f32 = unsafe { msg_send![self.inner, maxWhiteBalanceGain] };
-            let white_balance_gain_supported: bool = unsafe {
-                msg_send![
-                    self.inner,
-                    isLockingWhiteBalanceWithCustomDeviceGainsSupported
-                ]
-            };
+            let white_balance_gains = unsafe { device.deviceWhiteBalanceGains() };
+            let white_balance_default = unsafe { device.grayWorldDeviceWhiteBalanceGains() };
+            let white_balance_max = unsafe { device.maxWhiteBalanceGain() };
+            let white_balance_gain_supported =
+                unsafe { device.isLockingWhiteBalanceWithCustomDeviceGainsSupported() };
 
             controls.push(CameraControl::new(
                 KnownCameraControl::Gain,
@@ -1558,14 +1070,11 @@ mod internal {
             ));
 
             // get flash
-            let has_torch: bool = unsafe { msg_send![self.inner, isTorchAvailable] };
-            let torch_active: bool = unsafe { msg_send![self.inner, isTorchActive] };
-            let torch_off: bool =
-                unsafe { msg_send![self.inner, isTorchModeSupported: 0 as NSInteger] };
-            let torch_on: bool =
-                unsafe { msg_send![self.inner, isTorchModeSupported: 1 as NSInteger] };
-            let torch_auto: bool =
-                unsafe { msg_send![self.inner, isTorchModeSupported: 2 as NSInteger] };
+            let has_torch = unsafe { device.isTorchAvailable() };
+            let torch_active = unsafe { device.isTorchActive() };
+            let torch_off = unsafe { device.isTorchModeSupported(av::AVCaptureTorchMode::Off) };
+            let torch_on = unsafe { device.isTorchModeSupported(av::AVCaptureTorchMode::On) };
+            let torch_auto = unsafe { device.isTorchModeSupported(av::AVCaptureTorchMode::Auto) };
 
             {
                 let mut possible = vec![];
@@ -1601,8 +1110,8 @@ mod internal {
             }
 
             // get low light boost
-            let has_llb: bool = unsafe { msg_send![self.inner, isLowLightBoostSupported] };
-            let llb_enabled: bool = unsafe { msg_send![self.inner, isLowLightBoostEnabled] };
+            let has_llb = unsafe { device.isLowLightBoostSupported() };
+            let llb_enabled = unsafe { device.isLowLightBoostEnabled() };
 
             {
                 controls.push(CameraControl::new(
@@ -1625,17 +1134,17 @@ mod internal {
             }
 
             // get zoom factor
-            let zoom_current: CGFloat = unsafe { msg_send![self.inner, videoZoomFactor] };
-            let zoom_min: CGFloat = unsafe { msg_send![self.inner, minAvailableVideoZoomFactor] };
-            let zoom_max: CGFloat = unsafe { msg_send![self.inner, maxAvailableVideoZoomFactor] };
+            let zoom_current = unsafe { device.videoZoomFactor() };
+            let zoom_min = unsafe { device.minAvailableVideoZoomFactor() };
+            let zoom_max = unsafe { device.maxAvailableVideoZoomFactor() };
 
             controls.push(CameraControl::new(
                 KnownCameraControl::Zoom,
                 "Zoom".to_string(),
                 ControlValueDescription::FloatRange {
-                    min: zoom_min as f64,
-                    max: zoom_max as f64,
-                    value: zoom_current as f64,
+                    min: zoom_min,
+                    max: zoom_max,
+                    value: zoom_current,
                     step: f32::MIN_POSITIVE as f64,
                     default: 1.0,
                 },
@@ -1644,10 +1153,10 @@ mod internal {
             ));
 
             // zoom distortion correction
-            let distortion_correction_supported: bool =
-                unsafe { msg_send![self.inner, isGeometricDistortionCorrectionSupported] };
-            let distortion_correction_current_value: bool =
-                unsafe { msg_send![self.inner, isGeometricDistortionCorrectionEnabled] };
+            let distortion_correction_supported =
+                unsafe { device.isGeometricDistortionCorrectionSupported() };
+            let distortion_correction_current_value =
+                unsafe { device.isGeometricDistortionCorrectionEnabled() };
 
             controls.push(CameraControl::new(
                 KnownCameraControl::Other(6),
@@ -1723,7 +1232,12 @@ mod internal {
                     }
 
                     let _: () = unsafe {
-                        msg_send![self.inner, setExposureModeCustomWithDuration: current_duration, ISO: new_iso, completionHandler: NO_HANDLER]
+                        self.inner
+                            .setExposureModeCustomWithDuration_ISO_completionHandler(
+                                current_duration,
+                                new_iso,
+                                None,
+                            )
                     };
 
                     Ok(())
@@ -1757,8 +1271,7 @@ mod internal {
                             error: "Disabled".to_string(),
                         });
                     }
-                    let current_duration: CMTime =
-                        unsafe { msg_send![self.inner, exposureDuration] };
+                    let current_duration: CMTime = unsafe { self.inner.exposureDuration() };
 
                     let current_iso = unsafe { AVCaptureISOCurrent };
                     let new_duration = CMTime {
@@ -1781,7 +1294,12 @@ mod internal {
                     }
 
                     let _: () = unsafe {
-                        msg_send![self.inner, setExposureModeCustomWithDuration: new_duration, ISO: current_iso, completionHandler: NO_HANDLER]
+                        self.inner
+                            .setExposureModeCustomWithDuration_ISO_completionHandler(
+                                new_duration,
+                                current_iso,
+                                None,
+                            )
                     };
 
                     Ok(())
@@ -1828,7 +1346,10 @@ mod internal {
                         });
                     }
 
-                    let _: () = unsafe { msg_send![self.inner, setWhiteBalanceMode: setter] };
+                    unsafe {
+                        self.inner
+                            .setWhiteBalanceMode(av::AVCaptureWhiteBalanceMode(setter))
+                    };
 
                     Ok(())
                 }
@@ -1869,7 +1390,10 @@ mod internal {
                         });
                     }
 
-                    let _: () = unsafe { msg_send![self.inner, setWhiteBalanceMode: setter] };
+                    unsafe {
+                        self.inner
+                            .setWhiteBalanceMode(av::AVCaptureWhiteBalanceMode(setter))
+                    };
 
                     Ok(())
                 }
@@ -1910,7 +1434,10 @@ mod internal {
                         });
                     }
 
-                    let _: () = unsafe { msg_send![self.inner, setWhiteBalanceMode: setter] };
+                    unsafe {
+                        self.inner
+                            .setWhiteBalanceMode(av::AVCaptureWhiteBalanceMode(setter))
+                    };
 
                     Ok(())
                 }
@@ -1941,7 +1468,7 @@ mod internal {
                         property: id.to_string(),
                         value: value.to_string(),
                         error: "Expected float".to_string(),
-                    })? as CGFloat;
+                    })? as f64;
 
                     if !ctrlvalue.description().verify_setter(&value) {
                         return Err(NokhwaError::SetPropertyError {
@@ -1951,9 +1478,7 @@ mod internal {
                         });
                     }
 
-                    let _: () = unsafe {
-                        msg_send![self.inner, rampToVideoZoomFactor: setter, withRate: 1.0_f32]
-                    };
+                    unsafe { self.inner.rampToVideoZoomFactor_withRate(setter, 1.0) };
 
                     Ok(())
                 }
@@ -1994,7 +1519,10 @@ mod internal {
                         });
                     }
 
-                    let _: () = unsafe { msg_send![self.inner, setExposureMode: setter] };
+                    unsafe {
+                        self.inner
+                            .setExposureMode(av::AVCaptureExposureMode(setter))
+                    };
 
                     Ok(())
                 }
@@ -2040,7 +1568,7 @@ mod internal {
                         });
                     }
 
-                    let _: () = unsafe { msg_send![self.inner, setFocusMode: setter] };
+                    unsafe { self.inner.setFocusMode(av::AVCaptureFocusMode(setter)) };
 
                     Ok(())
                 }
@@ -2085,8 +1613,7 @@ mod internal {
                             });
                         }
 
-                        let _: () =
-                            unsafe { msg_send![self.inner, setFocusPointOfInterest: setter] };
+                        unsafe { self.inner.setFocusPointOfInterest(setter) };
 
                         Ok(())
                     }
@@ -2127,8 +1654,9 @@ mod internal {
                             });
                         }
 
-                        let _: () = unsafe {
-                            msg_send![self.inner, setFocusModeLockedWithLensPosition: setter, completionHandler: NO_HANDLER]
+                        unsafe {
+                            self.inner
+                                .setFocusModeLockedWithLensPosition_completionHandler(setter, None)
                         };
 
                         Ok(())
@@ -2173,8 +1701,7 @@ mod internal {
                             });
                         }
 
-                        let _: () =
-                            unsafe { msg_send![self.inner, setExposurePointOfInterest: setter] };
+                        unsafe { self.inner.setExposurePointOfInterest(setter) };
 
                         Ok(())
                     }
@@ -2215,11 +1742,9 @@ mod internal {
                             });
                         }
 
-                        let _: () = unsafe {
-                            msg_send![
-                                self.inner,
-                                setAutomaticallyAdjustsFaceDrivenAutoExposureEnabled: setter
-                            ]
+                        unsafe {
+                            self.inner
+                                .setAutomaticallyAdjustsFaceDrivenAutoExposureEnabled(setter)
                         };
 
                         Ok(())
@@ -2261,8 +1786,9 @@ mod internal {
                             });
                         }
 
-                        let _: () = unsafe {
-                            msg_send![self.inner, setExposureTargetBias: setter, completionHandler: NO_HANDLER]
+                        unsafe {
+                            self.inner
+                                .setExposureTargetBias_completionHandler(setter, None)
                         };
 
                         Ok(())
@@ -2304,7 +1830,7 @@ mod internal {
                             });
                         }
 
-                        let _: () = unsafe { msg_send![self.inner, setTorchMode: setter] };
+                        unsafe { self.inner.setTorchMode(av::AVCaptureTorchMode(setter)) };
 
                         Ok(())
                     }
@@ -2345,9 +1871,7 @@ mod internal {
                             });
                         }
 
-                        let _: () = unsafe {
-                            msg_send![self.inner, setGeometricDistortionCorrectionEnabled: setter]
-                        };
+                        unsafe { self.inner.setGeometricDistortionCorrectionEnabled(setter) };
 
                         Ok(())
                     }
@@ -2366,7 +1890,7 @@ mod internal {
         }
 
         pub fn active_format(&self) -> Result<CameraFormat, NokhwaError> {
-            let af: *mut AnyObject = unsafe { msg_send![self.inner, activeFormat] };
+            let af = unsafe { self.inner.activeFormat() };
             let avf_format = AVCaptureDeviceFormat::try_from(af)?;
             let resolution = avf_format.resolution;
             let fourcc = avf_format.fourcc;
@@ -2394,43 +1918,47 @@ mod internal {
         }
     }
 
-    impl AVCaptureDeviceInput {
-        pub fn new(capture_device: &AVCaptureDevice) -> Result<Self, NokhwaError> {
-            let cls = class!(AVCaptureDeviceInput);
-            let mut err_ptr: *mut AnyObject = std::ptr::null_mut();
-            let capture_input: *mut AnyObject = unsafe {
-                let allocated: *mut AnyObject = msg_send![cls, alloc];
-                msg_send![allocated, initWithDevice: capture_device.inner(), error: &mut err_ptr]
-            };
-            if !err_ptr.is_null() {
-                return Err(NokhwaError::InitializeError {
-                    backend: ApiBackend::AVFoundation,
-                    error: "Failed to create input".to_string(),
-                });
-            }
+    pub struct AVCaptureDeviceInput {
+        inner: Retained<av::AVCaptureDeviceInput>,
+    }
 
-            Ok(AVCaptureDeviceInput {
-                inner: capture_input,
-            })
+    impl AVCaptureDeviceInput {
+        pub fn inner(&self) -> &Retained<av::AVCaptureDeviceInput> {
+            &self.inner
+        }
+
+        pub fn new(capture_device: &AVCaptureDevice) -> Result<Self, NokhwaError> {
+            let inner = unsafe {
+                av::AVCaptureDeviceInput::deviceInputWithDevice_error(capture_device.inner())
+            }
+            .map_err(|err| NokhwaError::InitializeError {
+                backend: ApiBackend::AVFoundation,
+                error: format!("Failed to create input: {}", err.localizedDescription()),
+            })?;
+
+            Ok(AVCaptureDeviceInput { inner })
         }
     }
 
     pub struct AVCaptureVideoDataOutput {
-        inner: *mut AnyObject,
+        inner: Retained<av::AVCaptureVideoDataOutput>,
     }
 
     impl AVCaptureVideoDataOutput {
+        pub fn inner(&self) -> &Retained<av::AVCaptureVideoDataOutput> {
+            &self.inner
+        }
+
         pub fn new() -> Self {
             AVCaptureVideoDataOutput::default()
         }
 
         pub fn add_delegate(&self, delegate: &AVCaptureVideoCallback) -> Result<(), NokhwaError> {
             unsafe {
-                let _: () = msg_send![
-                    self.inner,
-                    setSampleBufferDelegate: delegate.delegate,
-                    queue: delegate.queue().0,
-                ];
+                self.inner.setSampleBufferDelegate_queue(
+                    Some(delegate.delegate()),
+                    Some(delegate.queue()),
+                );
             };
             Ok(())
         }
@@ -2450,47 +1978,55 @@ mod internal {
                     });
                 }
             };
-            let obj = CFNumber::from(cmpixelfmt as i32);
-            let obj = obj.as_CFTypeRef() as *mut AnyObject;
-            let key: *const _ = unsafe { kCVPixelBufferPixelFormatTypeKey };
-            let key = key as *mut AnyObject;
-            let dict: *mut AnyObject =
-                unsafe { msg_send![class!(NSDictionary), dictionaryWithObject: obj, forKey: key] };
-            let _: () = unsafe { msg_send![self.inner, setVideoSettings:dict] };
+            let value = NSNumber::new_i32(cmpixelfmt as i32);
+            // SAFETY: CFString is toll-free bridged to NSString.
+            let key: &NSString =
+                unsafe { &*(kCVPixelBufferPixelFormatTypeKey as *const _ as *const NSString) };
+            // SAFETY: The upcast is sound, as NSNumber is an object.
+            let value = unsafe { Retained::cast_unchecked::<AnyObject>(value) };
+            let settings = NSDictionary::from_retained_objects(&[key], &[value]);
+            // SAFETY: The values are NSNumbers, which is what AVFoundation expects here.
+            unsafe { self.inner.setVideoSettings(Some(&settings)) };
             Ok(())
         }
     }
 
     impl Default for AVCaptureVideoDataOutput {
         fn default() -> Self {
-            let cls = class!(AVCaptureVideoDataOutput);
-            let inner: *mut AnyObject = unsafe { msg_send![cls, new] };
-
-            AVCaptureVideoDataOutput { inner }
+            AVCaptureVideoDataOutput {
+                inner: unsafe { av::AVCaptureVideoDataOutput::new() },
+            }
         }
     }
 
+    pub struct AVCaptureSession {
+        inner: Retained<av::AVCaptureSession>,
+    }
+
     impl AVCaptureSession {
+        pub fn inner(&self) -> &Retained<av::AVCaptureSession> {
+            &self.inner
+        }
+
         pub fn new() -> Self {
             AVCaptureSession::default()
         }
 
         pub fn begin_configuration(&self) {
-            unsafe { msg_send![self.inner, beginConfiguration] }
+            unsafe { self.inner.beginConfiguration() }
         }
 
         pub fn commit_configuration(&self) {
-            unsafe { msg_send![self.inner, commitConfiguration] }
+            unsafe { self.inner.commitConfiguration() }
         }
 
         pub fn can_add_input(&self, input: &AVCaptureDeviceInput) -> bool {
-            let result: bool = unsafe { msg_send![self.inner, canAddInput:input.inner] };
-            result
+            unsafe { self.inner.canAddInput(&input.inner) }
         }
 
         pub fn add_input(&self, input: &AVCaptureDeviceInput) -> Result<(), NokhwaError> {
             if self.can_add_input(input) {
-                let _: () = unsafe { msg_send![self.inner, addInput:input.inner] };
+                unsafe { self.inner.addInput(&input.inner) };
                 return Ok(());
             }
             Err(NokhwaError::SetPropertyError {
@@ -2501,17 +2037,16 @@ mod internal {
         }
 
         pub fn remove_input(&self, input: &AVCaptureDeviceInput) {
-            unsafe { msg_send![self.inner, removeInput:input.inner] }
+            unsafe { self.inner.removeInput(&input.inner) }
         }
 
         pub fn can_add_output(&self, output: &AVCaptureVideoDataOutput) -> bool {
-            let result: bool = unsafe { msg_send![self.inner, canAddOutput:output.inner] };
-            result
+            unsafe { self.inner.canAddOutput(&output.inner) }
         }
 
         pub fn add_output(&self, output: &AVCaptureVideoDataOutput) -> Result<(), NokhwaError> {
             if self.can_add_output(output) {
-                let _: () = unsafe { msg_send![self.inner, addOutput:output.inner] };
+                unsafe { self.inner.addOutput(&output.inner) };
                 return Ok(());
             }
             Err(NokhwaError::SetPropertyError {
@@ -2522,17 +2057,16 @@ mod internal {
         }
 
         pub fn remove_output(&self, output: &AVCaptureVideoDataOutput) {
-            unsafe { msg_send![self.inner, removeOutput:output.inner] }
+            unsafe { self.inner.removeOutput(&output.inner) }
         }
 
         pub fn is_running(&self) -> bool {
-            let running: bool = unsafe { msg_send![self.inner, isRunning] };
-            running
+            unsafe { self.inner.isRunning() }
         }
 
         pub fn start(&self) -> Result<(), NokhwaError> {
             let start_stream_fn = || {
-                let _: () = unsafe { msg_send![self.inner, startRunning] };
+                unsafe { self.inner.startRunning() };
             };
 
             if std::panic::catch_unwind(std::panic::AssertUnwindSafe(start_stream_fn)).is_err() {
@@ -2544,23 +2078,19 @@ mod internal {
         }
 
         pub fn stop(&self) {
-            unsafe { msg_send![self.inner, stopRunning] }
+            unsafe { self.inner.stopRunning() }
         }
 
         pub fn is_interrupted(&self) -> bool {
-            let interrupted: bool = unsafe { msg_send![self.inner, isInterrupted] };
-            interrupted
+            unsafe { self.inner.isInterrupted() }
         }
     }
 
     impl Default for AVCaptureSession {
         fn default() -> Self {
-            let cls = class!(AVCaptureSession);
-            let session: *mut AnyObject = {
-                let alloc: *mut AnyObject = unsafe { msg_send![cls, alloc] };
-                unsafe { msg_send![alloc, init] }
-            };
-            AVCaptureSession { inner: session }
+            AVCaptureSession {
+                inner: unsafe { av::AVCaptureSession::new() },
+            }
         }
     }
 }
