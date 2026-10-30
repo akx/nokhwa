@@ -233,6 +233,7 @@ mod internal {
                     }
                 };
 
+                // FIXME: the frame format is always reported as GRAY, whatever the real format is.
                 // A send error means the receiving end is gone; nothing more to do.
                 let _ = self
                     .ivars()
@@ -619,6 +620,8 @@ mod internal {
             &self.device
         }
 
+        // FIXME: a single format with an unknown FourCC or media type fails the whole listing,
+        // instead of being skipped.
         pub fn supported_formats_raw(&self) -> Result<Vec<AVCaptureDeviceFormat>, NokhwaError> {
             unsafe { self.inner.formats() }
                 .iter()
@@ -652,6 +655,8 @@ mod internal {
             unsafe { self.inner.isSuspended() }
         }
 
+        // FIXME: `locked` is never set to true (`lock` takes `&self`), so the device is never
+        // actually unlocked by `unlock`, and `lockForConfiguration` is re-entered on every call.
         pub fn lock(&self) -> Result<(), NokhwaError> {
             if self.locked {
                 return Ok(());
@@ -884,9 +889,12 @@ mod internal {
                 } else {
                     vec![]
                 },
+                // FIXME: this is the focus mode check; should be `exposure_poi_supported`.
                 focus_auto || focus_continuous,
             ));
 
+            // FIXME: `isFaceDrivenAutoExposureEnabled` is whether it's enabled, not supported,
+            // and the "active" flag below is `exposure_poi_supported`, which is unrelated.
             let expposure_face_driven_supported =
                 unsafe { device.isFaceDrivenAutoExposureEnabled() };
             let exposure_face_driven =
@@ -932,6 +940,9 @@ mod internal {
             let exposure_duration_min = unsafe { active_format.minExposureDuration() };
             let exposure_duration_max = unsafe { active_format.maxExposureDuration() };
 
+            // FIXME: the flags are inverted: custom exposure is the mode where duration (and ISO
+            // below) *can* be set, but it is marked ReadOnly then (and `set_control` rejects
+            // ReadOnly). `.value` is also compared without regard to `.timescale`.
             controls.push(CameraControl::new(
                 KnownCameraControl::Gamma,
                 "ExposureDuration".to_string(),
@@ -1058,6 +1069,7 @@ mod internal {
                         white_balance_default.blueGain as f64,
                     ),
                 },
+                // FIXME: flags are inverted; disabled/read-only when gains are *supported*.
                 if white_balance_gain_supported {
                     vec![
                         KnownCameraControlFlag::Disabled,
@@ -1092,6 +1104,8 @@ mod internal {
                 controls.push(CameraControl::new(
                     KnownCameraControl::Other(5),
                     "TorchMode".to_string(),
+                    // FIXME: `value` is `isTorchActive` (0/1), not the `torchMode` enum, and the
+                    // flags below are inverted (disabled/read-only when a torch is available).
                     ControlValueDescription::Enum {
                         value: torch_active as i64,
                         possible,
@@ -1165,6 +1179,7 @@ mod internal {
                     value: distortion_correction_current_value,
                     default: false,
                 },
+                // FIXME: flags are inverted; read-only/disabled when correction is *supported*.
                 if distortion_correction_supported {
                     vec![
                         KnownCameraControlFlag::ReadOnly,
@@ -1390,6 +1405,7 @@ mod internal {
                         });
                     }
 
+                    // FIXME: BacklightComp is low-light boost, but this sets the white balance mode.
                     unsafe {
                         self.inner
                             .setWhiteBalanceMode(av::AVCaptureWhiteBalanceMode(setter))
@@ -1434,6 +1450,8 @@ mod internal {
                         });
                     }
 
+                    // FIXME: Gain is the white balance gains (an RGB value), but this sets the
+                    // white balance mode from a boolean.
                     unsafe {
                         self.inner
                             .setWhiteBalanceMode(av::AVCaptureWhiteBalanceMode(setter))
@@ -1889,6 +1907,8 @@ mod internal {
             }
         }
 
+        // FIXME: this returns the highest frame rate the active format supports, not the frame
+        // rate actually set (`activeVideoMin/MaxFrameDuration`).
         pub fn active_format(&self) -> Result<CameraFormat, NokhwaError> {
             let af = unsafe { self.inner.activeFormat() };
             let avf_format = AVCaptureDeviceFormat::try_from(af)?;
